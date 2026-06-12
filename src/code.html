@@ -1233,16 +1233,29 @@
 <!-- ANALYTICS PAGE -->
 <div class="page" id="analytics-page">
     <div class="analytics-layout">
-        <div class="analytics-sidebar">
-            <div class="analytics-sidebar-title">Routes</div>
-            <div class="analytics-user-badge">
-                <div class="analytics-user-avatar" id="a-avatar-an">?</div>
-                <div>
-                    <div class="analytics-user-name" id="a-username-an">—</div>
-                    <div class="analytics-user-role">Analyst</div>
-                </div>
-            </div>
-            <div id="route-selector"></div>
+         <div class="analytics-sidebar">
+             <div class="analytics-sidebar-title">Routes</div>
+             <div class="analytics-user-badge">
+                 <div class="analytics-user-avatar" id="a-avatar-an">?</div>
+                 <div>
+                     <div class="analytics-user-name" id="a-username-an">—</div>
+                     <div class="analytics-user-role">Analyst</div>
+                 </div>
+             </div>
+             <div class="shift-filter-wrap" id="an-shift-filter-wrap">
+                 <button class="shift-filter-btn" id="an-shift-filter-btn" onclick="toggleAnShiftDropdown(event)">
+                     <span id="an-shift-filter-label">All Shifts</span>
+                     <span class="shift-filter-arrow">▾</span>
+                 </button>
+                 <div class="shift-dropdown" id="an-shift-dropdown">
+                     <div class="shift-dropdown-header">
+                         <span>Shift Type</span>
+                         <button onclick="clearAnShiftFilter()">Clear All</button>
+                     </div>
+                     <div id="an-shift-options-list"></div>
+                 </div>
+             </div>
+             <div id="route-selector"></div>
             <button class="logout-btn" style="display:none" onclick="doLogout()">Sign Out</button>
         </div>
         <div class="analytics-main" id="analytics-main">
@@ -1579,20 +1592,23 @@
         document.body.appendChild(el);
         return true; // was virtual — action blocked
     }
-    let anRoutesData = [];
-    let anStopsData = [];
-    let anDataLoaded = false;
-    let activeCharts = [];
+     let anRoutesData = [];
+     let anStopsData = [];
+     let anDataLoaded = false;
+     let activeCharts = [];
+     let anSelectedRoute = ''; // Track currently selected analytics route (route ID or 'overview')
 
-    // Passengers state
-    let passDataLoaded = false;
-    let passAllData = [];
-    let passCurrentLine = 'ALL';
-    let passSearchQuery = '';
-    let passDeptFilter = 'ALL';
-    let passShiftFilter = new Set(); // empty = all shifts selected
+      // Passengers state
+     let passDataLoaded = false;
+     let passAllData = [];
+     let passCurrentLine = 'ALL';
+     let passSearchQuery = '';
+     let passDeptFilter = 'ALL';
+     let passShiftFilter = new Set(); // empty = all shifts selected
+     // Analytics tab shift filter
+     let anShiftFilter = new Set();
 
-    // ── CSV ────────────────────────────────────────────────────
+     // ── CSV ────────────────────────────────────────────────────
     function parseCSV(text) {
         const lines = text.trim().replace(/\r/g, '').split('\n');
         const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
@@ -1899,11 +1915,12 @@
         <div class="route-selector-pax">${anRoutesData.length} lines · ${anStopsData.reduce((a,s)=>a+(parseInt(s['Passengers'])||0),0)} total pax</div>
       </div>
     `;
-            overviewItem.addEventListener('click', () => {
-                document.querySelectorAll('.route-selector-item').forEach(el => el.classList.remove('selected'));
-                overviewItem.classList.add('selected');
-                renderOverview();
-            });
+             overviewItem.addEventListener('click', () => {
+                 document.querySelectorAll('.route-selector-item').forEach(el => el.classList.remove('selected'));
+                 overviewItem.classList.add('selected');
+                 anSelectedRoute = 'overview';
+                 renderOverview();
+             });
             container.appendChild(overviewItem);
             const divOv = document.createElement('div');
             divOv.className = 'sidebar-divider';
@@ -1927,11 +1944,12 @@
         <div class="route-selector-pax">${stops.length} stops · ${pax} pax</div>
       </div>
     `;
-            item.addEventListener('click', () => {
-                document.querySelectorAll('.route-selector-item').forEach(el => el.classList.remove('selected'));
-                item.classList.add('selected');
-                renderRouteAnalysis(id);
-            });
+             item.addEventListener('click', () => {
+                 document.querySelectorAll('.route-selector-item').forEach(el => el.classList.remove('selected'));
+                 item.classList.add('selected');
+                 anSelectedRoute = id;
+                 renderRouteAnalysis(id);
+             });
             container.appendChild(item);
 
             const div = document.createElement('div');
@@ -1939,22 +1957,27 @@
             container.appendChild(div);
         });
 
-        // Admin → show overview, supervisor → show their route directly
-        if (assignedLine !== 'ALL' && anRoutesData.length > 0) {
-            const firstItem = container.querySelector('.route-selector-item');
-            if (firstItem) firstItem.classList.add('selected');
-            renderRouteAnalysis(anRoutesData[0]['Line ID']);
-        } else {
-            renderOverview();
-        }
+         // Admin → show overview, supervisor → show their route directly
+         if (assignedLine !== 'ALL' && anRoutesData.length > 0) {
+             const firstItem = container.querySelector('.route-selector-item');
+             if (firstItem) firstItem.classList.add('selected');
+             anSelectedRoute = anRoutesData[0]['Line ID'];
+             renderRouteAnalysis(anRoutesData[0]['Line ID']);
+         } else {
+             anSelectedRoute = 'overview';
+             renderOverview();
+         }
     }
 
-    // ── RENDER OVERVIEW ────────────────────────────────────────
-    function renderOverview() {
-        activeCharts.forEach(c => c.destroy());
-        activeCharts = [];
+     // ── RENDER OVERVIEW ────────────────────────────────────────
+     function renderOverview() {
+         activeCharts.forEach(c => c.destroy());
+         activeCharts = [];
 
-        const grouped = {};
+         // Update analytics shift filter badge
+         _updateAnShiftFilterBtn();
+
+         const grouped = {};
         anStopsData.forEach(s => {
             const id = s['Line ID'];
             if (!grouped[id]) grouped[id] = [];
@@ -2109,12 +2132,15 @@
         activeCharts.push(ovDoughnut);
     }
 
-    // ── RENDER ANALYSIS ────────────────────────────────────────
-    function renderRouteAnalysis(routeId) {
-        activeCharts.forEach(c => c.destroy());
-        activeCharts = [];
+     // ── RENDER ANALYSIS ────────────────────────────────────────
+     function renderRouteAnalysis(routeId) {
+         activeCharts.forEach(c => c.destroy());
+         activeCharts = [];
 
-        const route  = anRoutesData.find(r => r['Line ID'] === routeId);
+         // Update analytics shift filter badge
+         _updateAnShiftFilterBtn();
+
+         const route  = anRoutesData.find(r => r['Line ID'] === routeId);
         if (!route) return;
         const name   = route['Line Name'];
         const color  = route['Color'] || '#e63946';
@@ -2699,102 +2725,198 @@
         renderPassTable(data, showLineCol);
     }
 
-    // ── SHIFT FILTER ────────────────────────────────────────────
-    function _buildShiftOptions() {
-        const ROSTER_SHEET = 'Personnel(EGYPT)';
-        const data = passCurrentLine === 'ALL' ? passAllData : passAllData.filter(r => r['_sheet'] === passCurrentLine);
-        const shiftCounts = {};
-        data.forEach(r => {
-            const shift = (r['SHIFT'] || r['shift'] || '').toString().trim();
-            if (!shift) return;
-            shiftCounts[shift] = (shiftCounts[shift] || 0) + 1;
-        });
-        const uniqueShifts = Object.keys(shiftCounts).sort();
-        const container = document.getElementById('shift-options-list');
-        if (!container) return;
-        container.innerHTML = uniqueShifts.map(shift => `
-    <label class="shift-option">
-      <input type="checkbox" value="${shift}" ${passShiftFilter.has(shift) ? 'checked' : ''}
-        onchange="onShiftCheckbox(this)">
-      <span class="shift-option-label">${shift}</span>
-      <span class="shift-option-count">${shiftCounts[shift]}</span>
-    </label>
-  `).join('');
-    }
+     // ── SHIFT FILTER ────────────────────────────────────────────
+     function _buildShiftOptions() {
+         const ROSTER_SHEET = 'Personnel(EGYPT)';
+         const data = passCurrentLine === 'ALL' ? passAllData : passAllData.filter(r => r['_sheet'] === passCurrentLine);
+         const shiftCounts = {};
+         data.forEach(r => {
+             const shift = (r['SHIFT'] || r['shift'] || '').toString().trim();
+             if (!shift) return;
+             shiftCounts[shift] = (shiftCounts[shift] || 0) + 1;
+         });
+         const uniqueShifts = Object.keys(shiftCounts).sort();
+         const container = document.getElementById('shift-options-list');
+         if (!container) return;
+         container.innerHTML = uniqueShifts.map(shift => `
+     <label class="shift-option">
+       <input type="checkbox" value="${shift}" ${passShiftFilter.has(shift) ? 'checked' : ''}
+         onchange="onShiftCheckbox(this)">
+       <span class="shift-option-label">${shift}</span>
+       <span class="shift-option-count">${shiftCounts[shift]}</span>
+     </label>
+   `).join('');
+     }
 
-    function toggleShiftDropdown(e) {
-        e.stopPropagation();
-        const dropdown = document.getElementById('shift-dropdown');
-        const btn = document.getElementById('shift-filter-btn');
-        const isOpen = dropdown.classList.contains('open');
-        if (!isOpen) {
-            _buildShiftOptions();
-            dropdown.classList.add('open');
-            btn.classList.add('open');
-        } else {
-            dropdown.classList.remove('open');
-            btn.classList.remove('open');
-        }
-    }
+     function _buildAnShiftOptions() {
+         const shiftCounts = {};
+         anStopsData.forEach(s => {
+             const shift = (s['SHIFT'] || s['shift'] || '').toString().trim();
+             if (!shift) return;
+             shiftCounts[shift] = (shiftCounts[shift] || 0) + 1;
+         });
+         const uniqueShifts = Object.keys(shiftCounts).sort();
+         const container = document.getElementById('an-shift-options-list');
+         if (!container) return;
+         container.innerHTML = uniqueShifts.map(shift => `
+     <label class="shift-option">
+       <input type="checkbox" value="${shift}" ${anShiftFilter.has(shift) ? 'checked' : ''}
+         onchange="onAnShiftCheckbox(this)">
+       <span class="shift-option-label">${shift}</span>
+       <span class="shift-option-count">${shiftCounts[shift]}</span>
+     </label>
+   `).join('');
+     }
 
-    function onShiftCheckbox(checkbox) {
-        const val = checkbox.value;
-        if (checkbox.checked) {
-            passShiftFilter.add(val);
-        } else {
-            passShiftFilter.delete(val);
-        }
-        _updateShiftFilterBtn();
-        const ROSTER_SHEET = 'Personnel(EGYPT)';
-        const data = passCurrentLine === 'ALL' ? passAllData : passAllData.filter(r => r['_sheet'] === passCurrentLine);
-        const showLineCol = passCurrentLine === 'ALL' || passCurrentLine === ROSTER_SHEET;
-        renderPassTable(data, showLineCol);
-    }
+     function toggleShiftDropdown(e) {
+         e.stopPropagation();
+         const dropdown = document.getElementById('shift-dropdown');
+         const btn = document.getElementById('shift-filter-btn');
+         const isOpen = dropdown.classList.contains('open');
+         if (!isOpen) {
+             _buildShiftOptions();
+             dropdown.classList.add('open');
+             btn.classList.add('open');
+         } else {
+             dropdown.classList.remove('open');
+             btn.classList.remove('open');
+         }
+     }
 
-    function clearShiftFilter() {
-        passShiftFilter = new Set();
-        _buildShiftOptions();
-        _updateShiftFilterBtn();
-        const ROSTER_SHEET = 'Personnel(EGYPT)';
-        const data = passCurrentLine === 'ALL' ? passAllData : passAllData.filter(r => r['_sheet'] === passCurrentLine);
-        const showLineCol = passCurrentLine === 'ALL' || passCurrentLine === ROSTER_SHEET;
-        renderPassTable(data, showLineCol);
-    }
+     function toggleAnShiftDropdown(e) {
+         e.stopPropagation();
+         const dropdown = document.getElementById('an-shift-dropdown');
+         const btn = document.getElementById('an-shift-filter-btn');
+         const isOpen = dropdown.classList.contains('open');
+         if (!isOpen) {
+             _buildAnShiftOptions();
+             dropdown.classList.add('open');
+             btn.classList.add('open');
+         } else {
+             dropdown.classList.remove('open');
+             btn.classList.remove('open');
+         }
+     }
 
-    function _updateShiftFilterBtn() {
-        const btn = document.getElementById('shift-filter-btn');
-        const label = document.getElementById('shift-filter-label');
-        if (!btn || !label) return;
-        const count = passShiftFilter.size;
-        if (count === 0) {
-            label.textContent = 'All Shifts';
-            btn.classList.remove('active');
-            // Remove badge if exists
-            const badge = btn.querySelector('.shift-filter-badge');
-            if (badge) badge.remove();
-        } else {
-            label.textContent = count === 1 ? [...passShiftFilter][0] : `${count} Shifts`;
-            btn.classList.add('active');
-            let badge = btn.querySelector('.shift-filter-badge');
-            if (!badge) {
-                badge = document.createElement('span');
-                badge.className = 'shift-filter-badge';
-                label.after(badge);
-            }
-            badge.textContent = count;
-        }
-    }
+     function onShiftCheckbox(checkbox) {
+         const val = checkbox.value;
+         if (checkbox.checked) {
+             passShiftFilter.add(val);
+         } else {
+             passShiftFilter.delete(val);
+         }
+         _updateShiftFilterBtn();
+         const ROSTER_SHEET = 'Personnel(EGYPT)';
+         const data = passCurrentLine === 'ALL' ? passAllData : passAllData.filter(r => r['_sheet'] === passCurrentLine);
+         const showLineCol = passCurrentLine === 'ALL' || passCurrentLine === ROSTER_SHEET;
+         renderPassTable(data, showLineCol);
+     }
 
-    // Close shift dropdown on outside click
-    document.addEventListener('click', e => {
-        const wrap = document.getElementById('shift-filter-wrap');
-        if (wrap && !wrap.contains(e.target)) {
-            const dropdown = document.getElementById('shift-dropdown');
-            const btn = document.getElementById('shift-filter-btn');
-            if (dropdown) dropdown.classList.remove('open');
-            if (btn) btn.classList.remove('open');
-        }
-    });
+     function onAnShiftCheckbox(checkbox) {
+         const val = checkbox.value;
+         if (checkbox.checked) {
+             anShiftFilter.add(val);
+         } else {
+             anShiftFilter.delete(val);
+         }
+         _updateAnShiftFilterBtn();
+         if (anSelectedRoute && anSelectedRoute !== 'overview' && anSelectedRoute !== '') {
+             renderRouteAnalysis(anSelectedRoute);
+         } else {
+             renderOverview();
+         }
+     }
+
+     function clearShiftFilter() {
+         passShiftFilter = new Set();
+         _buildShiftOptions();
+         _updateShiftFilterBtn();
+         const ROSTER_SHEET = 'Personnel(EGYPT)';
+         const data = passCurrentLine === 'ALL' ? passAllData : passAllData.filter(r => r['_sheet'] === passCurrentLine);
+         const showLineCol = passCurrentLine === 'ALL' || passCurrentLine === ROSTER_SHEET;
+         renderPassTable(data, showLineCol);
+     }
+
+     function clearAnShiftFilter() {
+         anShiftFilter = new Set();
+         _buildAnShiftOptions();
+         _updateAnShiftFilterBtn();
+         if (anSelectedRoute && anSelectedRoute !== 'overview' && anSelectedRoute !== '') {
+             renderRouteAnalysis(anSelectedRoute);
+         } else {
+             renderOverview();
+         }
+     }
+
+     function _updateShiftFilterBtn() {
+         const btn = document.getElementById('shift-filter-btn');
+         const label = document.getElementById('shift-filter-label');
+         if (!btn || !label) return;
+         const count = passShiftFilter.size;
+         if (count === 0) {
+             label.textContent = 'All Shifts';
+             btn.classList.remove('active');
+             // Remove badge if exists
+             const badge = btn.querySelector('.shift-filter-badge');
+             if (badge) badge.remove();
+         } else {
+             label.textContent = count === 1 ? [...passShiftFilter][0] : `${count} Shifts`;
+             btn.classList.add('active');
+             let badge = btn.querySelector('.shift-filter-badge');
+             if (!badge) {
+                 badge = document.createElement('span');
+                 badge.className = 'shift-filter-badge';
+                 label.after(badge);
+             }
+             badge.textContent = count;
+         }
+     }
+
+     function _updateAnShiftFilterBtn() {
+         const btn = document.getElementById('an-shift-filter-btn');
+         const label = document.getElementById('an-shift-filter-label');
+         if (!btn || !label) return;
+         const count = anShiftFilter.size;
+         if (count === 0) {
+             label.textContent = 'All Shifts';
+             btn.classList.remove('active');
+             // Remove badge if exists
+             const badge = btn.querySelector('.shift-filter-badge');
+             if (badge) badge.remove();
+         } else {
+             label.textContent = count === 1 ? [...anShiftFilter][0] : `${count} Shifts`;
+             btn.classList.add('active');
+             let badge = btn.querySelector('.shift-filter-badge');
+             if (!badge) {
+                 badge = document.createElement('span');
+                 badge.className = 'shift-filter-badge';
+                 label.after(badge);
+             }
+             badge.textContent = count;
+         }
+     }
+
+     // Close shift dropdown on outside click
+     document.addEventListener('click', e => {
+         const wrap = document.getElementById('shift-filter-wrap');
+         if (wrap && !wrap.contains(e.target)) {
+             const dropdown = document.getElementById('shift-dropdown');
+             const btn = document.getElementById('shift-filter-btn');
+             if (dropdown) dropdown.classList.remove('open');
+             if (btn) btn.classList.remove('open');
+         }
+     });
+
+     // Close analytics shift dropdown on outside click
+     document.addEventListener('click', e => {
+         const wrap = document.getElementById('an-shift-filter-wrap');
+         if (wrap && !wrap.contains(e.target)) {
+             const dropdown = document.getElementById('an-shift-dropdown');
+             const btn = document.getElementById('an-shift-filter-btn');
+             if (dropdown) dropdown.classList.remove('open');
+             if (btn) btn.classList.remove('open');
+         }
+     });
 
     // ── MAP INIT ───────────────────────────────────────────────
     const map = L.map('map', { zoomControl: false });
