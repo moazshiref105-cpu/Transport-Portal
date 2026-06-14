@@ -695,10 +695,33 @@
             color: var(--green); font-size: 11px; font-weight: 600;
             padding: 2px 8px; border-radius: 6px;
         }
-        .pass-no-results {
+        ..pass-no-results {
             text-align: center; padding: 48px 24px; color: var(--text3); font-size: 14px;
             background: var(--surface2); border-radius: 8px; margin-top: 4px;
         }
+
+        /* ── NOTES COLUMN ─────────────────────────────────────────── */
+        .note-cell-wrap {
+            display: flex; align-items: center; gap: 6px; min-width: 160px;
+        }
+        .note-input {
+            flex: 1; padding: 5px 9px; border-radius: 7px;
+            background: var(--surface2); border: 1.5px solid var(--border);
+            color: var(--text); font-family: inherit; font-size: 12px;
+            outline: none; transition: border-color 0.18s, background 0.18s;
+            min-width: 120px;
+        }
+        .note-input:focus { border-color: var(--blue); background: #fff; }
+        .note-input.saved { border-color: var(--green); }
+        .note-save-btn {
+            flex-shrink: 0; padding: 5px 10px; border-radius: 7px; border: none;
+            background: var(--blue-soft); color: var(--blue);
+            font-family: inherit; font-size: 11px; font-weight: 600;
+            cursor: pointer; transition: all 0.18s; white-space: nowrap;
+        }
+        .note-save-btn:hover { background: var(--blue); color: #fff; }
+        .note-save-btn.saving { opacity: 0.6; pointer-events: none; }
+        .note-save-btn.done { background: var(--green-soft); color: var(--green); }}
 
         /* ── SHIFT MULTI-SELECT FILTER ─────────────────────────────── */
         .shift-filter-wrap {
@@ -1233,29 +1256,29 @@
 <!-- ANALYTICS PAGE -->
 <div class="page" id="analytics-page">
     <div class="analytics-layout">
-         <div class="analytics-sidebar">
-             <div class="analytics-sidebar-title">Routes</div>
-             <div class="analytics-user-badge">
-                 <div class="analytics-user-avatar" id="a-avatar-an">?</div>
-                 <div>
-                     <div class="analytics-user-name" id="a-username-an">—</div>
-                     <div class="analytics-user-role">Analyst</div>
-                 </div>
-             </div>
-             <div class="shift-filter-wrap" id="an-shift-filter-wrap">
-                 <button class="shift-filter-btn" id="an-shift-filter-btn" onclick="toggleAnShiftDropdown(event)">
-                     <span id="an-shift-filter-label">All Shifts</span>
-                     <span class="shift-filter-arrow">▾</span>
-                 </button>
-                 <div class="shift-dropdown" id="an-shift-dropdown">
-                     <div class="shift-dropdown-header">
-                         <span>Shift Type</span>
-                         <button onclick="clearAnShiftFilter()">Clear All</button>
-                     </div>
-                     <div id="an-shift-options-list"></div>
-                 </div>
-             </div>
-             <div id="route-selector"></div>
+        <div class="analytics-sidebar">
+            <div class="analytics-sidebar-title">Routes</div>
+            <div class="analytics-user-badge">
+                <div class="analytics-user-avatar" id="a-avatar-an">?</div>
+                <div>
+                    <div class="analytics-user-name" id="a-username-an">—</div>
+                    <div class="analytics-user-role">Analyst</div>
+                </div>
+            </div>
+            <div class="shift-filter-wrap" id="an-shift-filter-wrap">
+                <button class="shift-filter-btn" id="an-shift-btn" onclick="toggleAnShiftDropdown(event)">
+                    <span id="an-shift-filter-label">All Shifts</span>
+                    <span class="shift-filter-arrow">▾</span>
+                </button>
+                <div class="shift-dropdown" id="an-shift-dropdown">
+                    <div class="shift-dropdown-header">
+                        <span>Shift Type</span>
+                        <button onclick="clearAnShiftFilter()">Clear All</button>
+                    </div>
+                    <div id="an-shift-options-list"></div>
+                </div>
+            </div>
+            <div id="route-selector"></div>
             <button class="logout-btn" style="display:none" onclick="doLogout()">Sign Out</button>
         </div>
         <div class="analytics-main" id="analytics-main">
@@ -1540,6 +1563,7 @@
     const AN_STOPS_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR7UlQVu5T66c4r-YzrHWAxNZbLDnaa9S7Ba0d2_7TTO_9bzhxxuMQeSyPqqKxC5HSPTLkvphH9m4Tv/pub?gid=1716819336&single=true&output=csv';
     const AN_USERS_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR7UlQVu5T66c4r-YzrHWAxNZbLDnaa9S7Ba0d2_7TTO_9bzhxxuMQeSyPqqKxC5HSPTLkvphH9m4Tv/pub?gid=1506622408&single=true&output=csv';
     const PASSENGERS_API = 'https://script.google.com/macros/s/AKfycbyczqJM9eiotv6ChwtmDcrmKMSNVFe3BigFGGb1ulwkj2eKXPbpAZUfDfboqhGudMoC/exec';
+    const NOTES_API = 'https://script.google.com/macros/s/AKfycbwxnH0xlVHtZoxffPrSz7tJUltig99eONfIZeIs3KdohVhkVUZIdC36fkZ7VqBW5fqN/exec';
 
     // ── STATE ──────────────────────────────────────────────────
     let currentTab = 'map';
@@ -1592,23 +1616,27 @@
         document.body.appendChild(el);
         return true; // was virtual — action blocked
     }
-     let anRoutesData = [];
-     let anStopsData = [];
-     let anDataLoaded = false;
-     let activeCharts = [];
-     let anSelectedRoute = ''; // Track currently selected analytics route (route ID or 'overview')
+    let anRoutesData = [];
+    let anStopsData = [];
+    let anDataLoaded = false;
+    let activeCharts = [];
+    let anSelectedRoute = ''; // Track currently selected analytics route (route ID or 'overview')
 
-      // Passengers state
-     let passDataLoaded = false;
-     let passAllData = [];
-     let passCurrentLine = 'ALL';
-     let passSearchQuery = '';
-     let passDeptFilter = 'ALL';
-     let passShiftFilter = new Set(); // empty = all shifts selected
-     // Analytics tab shift filter
-     let anShiftFilter = new Set();
+    // Passengers state
+    let passDataLoaded = false;
+    let passAllData = [];
+    let passCurrentLine = 'ALL';
+    let passSearchQuery = '';
+    let passDeptFilter = 'ALL';
+    let passShiftFilter = new Set(); // empty = all shifts selected
+    // Analytics tab shift filter
+    let anShiftFilter = new Set();
 
-     // ── CSV ────────────────────────────────────────────────────
+    // ── NOTES STATE ────────────────────────────────────────────
+    let _notesCache  = {};
+    let _notesLoaded = false;
+
+    // ── CSV ────────────────────────────────────────────────────
     function parseCSV(text) {
         const lines = text.trim().replace(/\r/g, '').split('\n');
         const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
@@ -1677,6 +1705,7 @@
 
     function showAnalyticsPage() {
         currentTab = 'analytics';
+        anShiftFilter = new Set();
         document.getElementById('map-page').classList.remove('active');
         document.getElementById('analytics-page').classList.add('active');
         document.getElementById('passengers-page').classList.remove('active');
@@ -1915,12 +1944,12 @@
         <div class="route-selector-pax">${anRoutesData.length} lines · ${anStopsData.reduce((a,s)=>a+(parseInt(s['Passengers'])||0),0)} total pax</div>
       </div>
     `;
-             overviewItem.addEventListener('click', () => {
-                 document.querySelectorAll('.route-selector-item').forEach(el => el.classList.remove('selected'));
-                 overviewItem.classList.add('selected');
-                 anSelectedRoute = 'overview';
-                 renderOverview();
-             });
+            overviewItem.addEventListener('click', () => {
+                document.querySelectorAll('.route-selector-item').forEach(el => el.classList.remove('selected'));
+                overviewItem.classList.add('selected');
+                anSelectedRoute = 'overview';
+                renderOverview();
+            });
             container.appendChild(overviewItem);
             const divOv = document.createElement('div');
             divOv.className = 'sidebar-divider';
@@ -1944,12 +1973,12 @@
         <div class="route-selector-pax">${stops.length} stops · ${pax} pax</div>
       </div>
     `;
-             item.addEventListener('click', () => {
-                 document.querySelectorAll('.route-selector-item').forEach(el => el.classList.remove('selected'));
-                 item.classList.add('selected');
-                 anSelectedRoute = id;
-                 renderRouteAnalysis(id);
-             });
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.route-selector-item').forEach(el => el.classList.remove('selected'));
+                item.classList.add('selected');
+                anSelectedRoute = id;
+                renderRouteAnalysis(id);
+            });
             container.appendChild(item);
 
             const div = document.createElement('div');
@@ -1957,35 +1986,40 @@
             container.appendChild(div);
         });
 
-         // Admin → show overview, supervisor → show their route directly
-         if (assignedLine !== 'ALL' && anRoutesData.length > 0) {
-             const firstItem = container.querySelector('.route-selector-item');
-             if (firstItem) firstItem.classList.add('selected');
-             anSelectedRoute = anRoutesData[0]['Line ID'];
-             renderRouteAnalysis(anRoutesData[0]['Line ID']);
-         } else {
-             anSelectedRoute = 'overview';
-             renderOverview();
-         }
+        // Admin → show overview, supervisor → show their route directly
+        if (assignedLine !== 'ALL' && anRoutesData.length > 0) {
+            const firstItem = container.querySelector('.route-selector-item');
+            if (firstItem) firstItem.classList.add('selected');
+            anSelectedRoute = anRoutesData[0]['Line ID'];
+            renderRouteAnalysis(anRoutesData[0]['Line ID']);
+        } else {
+            anSelectedRoute = 'overview';
+            renderOverview();
+        }
     }
 
-     // ── RENDER OVERVIEW ────────────────────────────────────────
-     function renderOverview() {
-         activeCharts.forEach(c => c.destroy());
-         activeCharts = [];
+    // ── RENDER OVERVIEW ────────────────────────────────────────
+    function renderOverview() {
+        activeCharts.forEach(c => c.destroy());
+        activeCharts = [];
 
-         // Update analytics shift filter badge
-         _updateAnShiftFilterBtn();
+        // Update analytics shift filter badge
+        _updateAnShiftFilterBtn();
 
-         const grouped = {};
-        anStopsData.forEach(s => {
+        const _anShiftCol = 'SHIFT';
+        const filteredAnStops = anShiftFilter.size > 0
+            ? anStopsData.filter(s => anShiftFilter.has(s[_anShiftCol]))
+            : [...anStopsData];
+
+        const grouped = {};
+        filteredAnStops.forEach(s => {
             const id = s['Line ID'];
             if (!grouped[id]) grouped[id] = [];
             grouped[id].push(s);
         });
 
-        const totalPax   = anStopsData.reduce((a,s) => a+(parseInt(s['Passengers'])||0), 0);
-        const totalStops = anStopsData.length;
+        const totalPax   = filteredAnStops.reduce((a,s) => a+(parseInt(s['Passengers'])||0), 0);
+        const totalStops = filteredAnStops.length;
         const totalLines = anRoutesData.length;
         const avgPerLine = totalLines ? Math.round(totalPax / totalLines) : 0;
 
@@ -2132,24 +2166,28 @@
         activeCharts.push(ovDoughnut);
     }
 
-     // ── RENDER ANALYSIS ────────────────────────────────────────
-     function renderRouteAnalysis(routeId) {
-         activeCharts.forEach(c => c.destroy());
-         activeCharts = [];
+    // ── RENDER ANALYSIS ────────────────────────────────────────
+    function renderRouteAnalysis(routeId) {
+        activeCharts.forEach(c => c.destroy());
+        activeCharts = [];
 
-         // Update analytics shift filter badge
-         _updateAnShiftFilterBtn();
+        // Update analytics shift filter badge
+        _updateAnShiftFilterBtn();
 
-         const route  = anRoutesData.find(r => r['Line ID'] === routeId);
+        const route  = anRoutesData.find(r => r['Line ID'] === routeId);
         if (!route) return;
         const name   = route['Line Name'];
         const color  = route['Color'] || '#e63946';
 
-        const stops  = anStopsData.filter(s => s['Line ID'] === routeId);
-        const totalPax = stops.reduce((a,s) => a+(parseInt(s['Passengers'])||0), 0);
-        const maxPax   = Math.max(...stops.map(s => parseInt(s['Passengers'])||0), 1);
-        const avgPax   = stops.length ? Math.round(totalPax / stops.length) : 0;
-        const topStop  = stops.reduce((a,b) => (parseInt(b['Passengers'])||0) > (parseInt(a['Passengers'])||0) ? b : a, stops[0]);
+        let routeStops  = anStopsData.filter(s => s['Line ID'] === routeId);
+        if (anShiftFilter.size > 0) {
+            const _anShiftCol = 'SHIFT';
+            routeStops = routeStops.filter(s => anShiftFilter.has(s[_anShiftCol]));
+        }
+        const totalPax = routeStops.reduce((a,s) => a+(parseInt(s['Passengers'])||0), 0);
+        const maxPax   = Math.max(...routeStops.map(s => parseInt(s['Passengers'])||0), 1);
+        const avgPax   = routeStops.length ? Math.round(totalPax / routeStops.length) : 0;
+        const topStop  = routeStops.reduce((a,b) => (parseInt(b['Passengers'])||0) > (parseInt(a['Passengers'])||0) ? b : a, routeStops[0]);
 
         const main = document.getElementById('analytics-main');
         main.innerHTML = `
@@ -2157,7 +2195,7 @@
       <div class="analytics-route-color-bar" style="background:${color}"></div>
       <div>
         <div class="analytics-route-name">${name}</div>
-        <div class="analytics-route-meta">${stops.length} stops &nbsp;·&nbsp; ${totalPax} total passengers</div>
+        <div class="analytics-route-meta">${routeStops.length} stops &nbsp;·&nbsp; ${totalPax} total passengers</div>
       </div>
     </div>
 
@@ -2168,19 +2206,19 @@
         <div class="kpi-sub">across all stops</div>
         <div class="kpi-bar"><div class="kpi-bar-fill" style="width:100%;background:${color}"></div></div>
       </div>
-      <div class="kpi-card">
+        <div class="kpi-card">
         <div class="kpi-label">Total Stops</div>
-        <div class="kpi-value">${stops.length}</div>
+        <div class="kpi-value">${routeStops.length}</div>
         <div class="kpi-sub">on this route</div>
         <div class="kpi-bar"><div class="kpi-bar-fill" style="width:70%;background:#1B5FAD"></div></div>
       </div>
-      <div class="kpi-card">
+        <div class="kpi-card">
         <div class="kpi-label">Avg per Stop</div>
         <div class="kpi-value">${avgPax}</div>
         <div class="kpi-sub">passengers/stop</div>
         <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${Math.min(100,avgPax/maxPax*100)}%;background:#6B3A6B"></div></div>
       </div>
-      <div class="kpi-card">
+        <div class="kpi-card">
         <div class="kpi-label">Peak Stop</div>
         <div class="kpi-value" style="font-size:16px;padding-top:4px">${topStop ? topStop['Stop name'] : '—'}</div>
         <div class="kpi-sub">${topStop ? (parseInt(topStop['Passengers'])||0) + ' passengers' : ''}</div>
@@ -2217,11 +2255,11 @@
 
         // Build table
         const tbody = document.getElementById('stops-tbody');
-        stops.forEach((stop, i) => {
+        routeStops.forEach((stop, i) => {
             const pax   = parseInt(stop['Passengers']) || 0;
             const share = totalPax ? Math.round(pax / totalPax * 100) : 0;
             const isFirst = i === 0;
-            const isLast  = i === stops.length - 1;
+            const isLast  = i === routeStops.length - 1;
             const dotBg   = isFirst ? color : isLast ? 'transparent' : 'rgba(255,255,255,0.3)';
             const dotBorder = isFirst ? 'none' : isLast ? '2px solid ' + color : 'none';
 
@@ -2246,8 +2284,8 @@
         const barChart = new Chart(barCtx, {
             type: 'bar',
             data: {
-                labels: stops.map(s => s['Stop name'] || '?'),
-                datasets: [{ data: stops.map(s => parseInt(s['Passengers'])||0), backgroundColor: color + 'cc', borderColor: color, borderWidth: 1, borderRadius: 4 }]
+                labels: routeStops.map(s => s['Stop name'] || '?'),
+                datasets: [{ data: routeStops.map(s => parseInt(s['Passengers'])||0), backgroundColor: color + 'cc', borderColor: color, borderWidth: 1, borderRadius: 4 }]
             },
             options: {
                 responsive: true, maintainAspectRatio: true,
@@ -2261,7 +2299,7 @@
         activeCharts.push(barChart);
 
         // Doughnut chart — top 5 + others
-        const sorted = [...stops].sort((a,b) => (parseInt(b['Passengers'])||0) - (parseInt(a['Passengers'])||0));
+        const sorted = [...routeStops].sort((a,b) => (parseInt(b['Passengers'])||0) - (parseInt(a['Passengers'])||0));
         const top5   = sorted.slice(0, 5);
         const others = sorted.slice(5).reduce((a,s) => a+(parseInt(s['Passengers'])||0), 0);
         const dLabels = [...top5.map(s => s['Stop name']), others > 0 ? 'Others' : null].filter(Boolean);
@@ -2419,6 +2457,10 @@
             }
 
             passDataLoaded = true;
+            // Load notes (fetch once; re-use cache on subsequent renders)
+            if (!_notesLoaded) {
+                await loadNotes();
+            }
             buildPassSidebar();
             // Management/virtual sees all; restricted admin sees only their line
             if (assignedLine !== 'ALL') {
@@ -2635,6 +2677,7 @@
             ${showLineCol ? '<th>Line / Source</th>' : ''}
             <th>Stop</th>
             <th>GOV</th>
+            <th>Notes</th>
         </thead>
         <tbody id="pass-tbody"></tbody>
       </table>
@@ -2694,6 +2737,8 @@
 
             const isRosterRow = r['_sheet'] === 'Personnel(EGYPT)';
 
+            const noteKey = empId !== '—' ? empId : '';
+            const existingNote = noteKey ? (_notesCache[noteKey] || '') : '';
             const tr = document.createElement('tr');
             tr.innerHTML = `
       <td style="color:#a0aec8;font-size:12px">${i + 1}</td>
@@ -2704,11 +2749,169 @@
       ${showLineCol ? `<td style="color:${isRosterRow ? '#f59e0b' : '#a0aec8'};font-size:12px;font-weight:${isRosterRow ? '600' : '400'}">${isRosterRow ? '🏢 Company Roster' : line}</td>` : ''}
       <td style="color:#a0aec8;font-size:12px">${stop}</td>
       <td style="color:#a0aec8;font-size:12px">${gov}</td>
+      <td>
+        ${noteKey ? `
+        <div class="note-cell-wrap">
+          <input class="note-input${existingNote ? ' saved' : ''}"
+                 id="note-input-${noteKey}"
+                 type="text"
+                 placeholder="Add note…"
+                 value="${existingNote.replace(/"/g,'&quot;')}"
+                 data-empid="${noteKey}"
+                 onkeydown="if(event.key==='Enter')window.saveNoteInline('${noteKey}')">
+         <button class="note-save-btn" id="note-btn-${noteKey}"
+                  onclick="window.saveNoteInline('${noteKey}')">Save</button>
+        </div>` : '<span style="color:var(--text3);font-size:11px">—</span>'}
+      </td>
     `;
             tbody.appendChild(tr);
         });
     }
+    // ── NOTES SYSTEM ───────────────────────────────────────────
+    // In-memory cache: { empId: noteText }
 
+    /**
+     * loadNotes()
+     * Fetches all notes from the Notes sheet via the Apps Script API.
+     * Populates _notesCache. Called once after passAllData loads.
+     */
+    async function loadNotes() {
+        try {
+            const res = await fetch(NOTES_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'getNotes' })
+            });
+            const data = await res.json();
+            if (data.success && Array.isArray(data.notes)) {
+                _notesCache = {};
+                data.notes.forEach(n => {
+                    if (n.empId) _notesCache[String(n.empId).trim()] = n.note || '';
+                });
+            }
+            _notesLoaded = true;
+        } catch(e) {
+            console.warn('[Notes] Failed to load notes:', e.message);
+            _notesLoaded = true; // allow UI to render even if notes fail
+        }
+    }
+
+    /**
+     * saveNoteInline(empId)
+     * Saves the note for a given employee ID to the Notes sheet.
+     * Updates the local cache and gives visual feedback.
+     */
+    window.saveNoteInline = async function(empId) {
+        empId = String(empId || '').trim();
+        const input = document.getElementById('note-input-' + empId);
+        const btn   = document.getElementById('note-btn-'   + empId);
+        if (!input || !btn) return;
+
+        const noteText = input.value.trim();
+        btn.classList.add('saving');
+        btn.textContent = '…';
+
+        try {
+            const res = await fetch(NOTES_API, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'saveNote', empId, note: noteText })
+            });
+            const data = await res.json();
+            console.log('[Notes] API response:', JSON.stringify(data));
+            if (data.success) {
+                _notesCache[empId] = noteText;
+                btn.classList.remove('saving');
+                btn.classList.add('done');
+                btn.textContent = '✓';
+                input.classList.add('saved');
+                setTimeout(() => {
+                    btn.classList.remove('done');
+                    btn.textContent = 'Save';
+                }, 2000);
+            } else {
+                btn.classList.remove('saving');
+                btn.textContent = 'Save';
+                showToast('Failed to save note', 'error');
+            }
+        } catch(e) {
+            btn.classList.remove('saving');
+            btn.textContent = 'Save';
+            console.error('[Notes] Save error:', e.message, e);
+            showToast('Network error saving note', 'error');
+        }
+    }
+    /// ── NOTES SYSTEM ───────────────────────────────────────────
+
+    window.loadNotes = async function() {
+        try {
+            const cached = localStorage.getItem('notesCache');
+            if (cached) {
+                _notesCache = JSON.parse(cached);
+            }
+            const res = await fetch(NOTES_API, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'getNotes' })
+            });
+            const data = await res.json();
+            if (data.success && Array.isArray(data.notes)) {
+                _notesCache = {};
+                data.notes.forEach(n => {
+                    if (n.empId) _notesCache[String(n.empId).trim()] = n.note || '';
+                });
+                localStorage.setItem('notesCache', JSON.stringify(_notesCache));
+            }
+            _notesLoaded = true;
+        } catch(e) {
+            console.warn('[Notes] Failed to load notes:', e.message);
+            _notesLoaded = true;
+        }
+    }
+
+    window.saveNoteInline = async function(empId) {
+        empId = String(empId || '').trim();
+        const input = document.getElementById('note-input-' + empId);
+        const btn   = document.getElementById('note-btn-'   + empId);
+        if (!input || !btn) return;
+
+        const noteText = input.value.trim();
+        btn.classList.add('saving');
+        btn.textContent = '…';
+
+        try {
+            const res = await fetch(NOTES_API, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'saveNote', empId, note: noteText })
+            });
+            const data = await res.json();
+            if (data.success) {
+                _notesCache[empId] = noteText;
+                localStorage.setItem('notesCache', JSON.stringify(_notesCache));
+                btn.classList.remove('saving');
+                btn.classList.add('done');
+                btn.textContent = '✓';
+                input.classList.add('saved');
+                setTimeout(() => {
+                    btn.classList.remove('done');
+                    btn.textContent = 'Save';
+                }, 2000);
+            } else {
+                btn.classList.remove('saving');
+                btn.textContent = 'Save';
+                showToast('Failed to save note', 'error');
+            }
+        } catch(e) {
+            btn.classList.remove('saving');
+            btn.textContent = 'Save';
+            console.error('[Notes] Save error:', e.message, e);
+            showToast('Network error saving note', 'error');
+        }
+    }
     function onPassSearch(val) {
         passSearchQuery = val;
         const ROSTER_SHEET = 'Personnel(EGYPT)';
@@ -2725,20 +2928,20 @@
         renderPassTable(data, showLineCol);
     }
 
-     // ── SHIFT FILTER ────────────────────────────────────────────
-     function _buildShiftOptions() {
-         const ROSTER_SHEET = 'Personnel(EGYPT)';
-         const data = passCurrentLine === 'ALL' ? passAllData : passAllData.filter(r => r['_sheet'] === passCurrentLine);
-         const shiftCounts = {};
-         data.forEach(r => {
-             const shift = (r['SHIFT'] || r['shift'] || '').toString().trim();
-             if (!shift) return;
-             shiftCounts[shift] = (shiftCounts[shift] || 0) + 1;
-         });
-         const uniqueShifts = Object.keys(shiftCounts).sort();
-         const container = document.getElementById('shift-options-list');
-         if (!container) return;
-         container.innerHTML = uniqueShifts.map(shift => `
+    // ── SHIFT FILTER ────────────────────────────────────────────
+    function _buildShiftOptions() {
+        const ROSTER_SHEET = 'Personnel(EGYPT)';
+        const data = passCurrentLine === 'ALL' ? passAllData : passAllData.filter(r => r['_sheet'] === passCurrentLine);
+        const shiftCounts = {};
+        data.forEach(r => {
+            const shift = (r['SHIFT'] || r['shift'] || '').toString().trim();
+            if (!shift) return;
+            shiftCounts[shift] = (shiftCounts[shift] || 0) + 1;
+        });
+        const uniqueShifts = Object.keys(shiftCounts).sort();
+        const container = document.getElementById('shift-options-list');
+        if (!container) return;
+        container.innerHTML = uniqueShifts.map(shift => `
      <label class="shift-option">
        <input type="checkbox" value="${shift}" ${passShiftFilter.has(shift) ? 'checked' : ''}
          onchange="onShiftCheckbox(this)">
@@ -2746,19 +2949,19 @@
        <span class="shift-option-count">${shiftCounts[shift]}</span>
      </label>
    `).join('');
-     }
+    }
 
-     function _buildAnShiftOptions() {
-         const shiftCounts = {};
-         anStopsData.forEach(s => {
-             const shift = (s['SHIFT'] || s['shift'] || '').toString().trim();
-             if (!shift) return;
-             shiftCounts[shift] = (shiftCounts[shift] || 0) + 1;
-         });
-         const uniqueShifts = Object.keys(shiftCounts).sort();
-         const container = document.getElementById('an-shift-options-list');
-         if (!container) return;
-         container.innerHTML = uniqueShifts.map(shift => `
+    function _buildAnShiftOptions() {
+        const shiftCounts = {};
+        anStopsData.forEach(s => {
+            const shift = (s['SHIFT'] || s['shift'] || '').toString().trim();
+            if (!shift) return;
+            shiftCounts[shift] = (shiftCounts[shift] || 0) + 1;
+        });
+        const uniqueShifts = Object.keys(shiftCounts).sort();
+        const container = document.getElementById('an-shift-options-list');
+        if (!container) return;
+        container.innerHTML = uniqueShifts.map(shift => `
      <label class="shift-option">
        <input type="checkbox" value="${shift}" ${anShiftFilter.has(shift) ? 'checked' : ''}
          onchange="onAnShiftCheckbox(this)">
@@ -2766,157 +2969,157 @@
        <span class="shift-option-count">${shiftCounts[shift]}</span>
      </label>
    `).join('');
-     }
+    }
 
-     function toggleShiftDropdown(e) {
-         e.stopPropagation();
-         const dropdown = document.getElementById('shift-dropdown');
-         const btn = document.getElementById('shift-filter-btn');
-         const isOpen = dropdown.classList.contains('open');
-         if (!isOpen) {
-             _buildShiftOptions();
-             dropdown.classList.add('open');
-             btn.classList.add('open');
-         } else {
-             dropdown.classList.remove('open');
-             btn.classList.remove('open');
-         }
-     }
+    function toggleShiftDropdown(e) {
+        e.stopPropagation();
+        const dropdown = document.getElementById('shift-dropdown');
+        const btn = document.getElementById('shift-filter-btn');
+        const isOpen = dropdown.classList.contains('open');
+        if (!isOpen) {
+            _buildShiftOptions();
+            dropdown.classList.add('open');
+            btn.classList.add('open');
+        } else {
+            dropdown.classList.remove('open');
+            btn.classList.remove('open');
+        }
+    }
 
-     function toggleAnShiftDropdown(e) {
-         e.stopPropagation();
-         const dropdown = document.getElementById('an-shift-dropdown');
-         const btn = document.getElementById('an-shift-filter-btn');
-         const isOpen = dropdown.classList.contains('open');
-         if (!isOpen) {
-             _buildAnShiftOptions();
-             dropdown.classList.add('open');
-             btn.classList.add('open');
-         } else {
-             dropdown.classList.remove('open');
-             btn.classList.remove('open');
-         }
-     }
+    function toggleAnShiftDropdown(e) {
+        e.stopPropagation();
+        const dropdown = document.getElementById('an-shift-dropdown');
+        const btn = document.getElementById('an-shift-btn');
+        const isOpen = dropdown.classList.contains('open');
+        if (!isOpen) {
+            _buildAnShiftOptions();
+            dropdown.classList.add('open');
+            btn.classList.add('open');
+        } else {
+            dropdown.classList.remove('open');
+            btn.classList.remove('open');
+        }
+    }
 
-     function onShiftCheckbox(checkbox) {
-         const val = checkbox.value;
-         if (checkbox.checked) {
-             passShiftFilter.add(val);
-         } else {
-             passShiftFilter.delete(val);
-         }
-         _updateShiftFilterBtn();
-         const ROSTER_SHEET = 'Personnel(EGYPT)';
-         const data = passCurrentLine === 'ALL' ? passAllData : passAllData.filter(r => r['_sheet'] === passCurrentLine);
-         const showLineCol = passCurrentLine === 'ALL' || passCurrentLine === ROSTER_SHEET;
-         renderPassTable(data, showLineCol);
-     }
+    function onShiftCheckbox(checkbox) {
+        const val = checkbox.value;
+        if (checkbox.checked) {
+            passShiftFilter.add(val);
+        } else {
+            passShiftFilter.delete(val);
+        }
+        _updateShiftFilterBtn();
+        const ROSTER_SHEET = 'Personnel(EGYPT)';
+        const data = passCurrentLine === 'ALL' ? passAllData : passAllData.filter(r => r['_sheet'] === passCurrentLine);
+        const showLineCol = passCurrentLine === 'ALL' || passCurrentLine === ROSTER_SHEET;
+        renderPassTable(data, showLineCol);
+    }
 
-     function onAnShiftCheckbox(checkbox) {
-         const val = checkbox.value;
-         if (checkbox.checked) {
-             anShiftFilter.add(val);
-         } else {
-             anShiftFilter.delete(val);
-         }
-         _updateAnShiftFilterBtn();
-         if (anSelectedRoute && anSelectedRoute !== 'overview' && anSelectedRoute !== '') {
-             renderRouteAnalysis(anSelectedRoute);
-         } else {
-             renderOverview();
-         }
-     }
+    function onAnShiftCheckbox(checkbox) {
+        const val = checkbox.value;
+        if (checkbox.checked) {
+            anShiftFilter.add(val);
+        } else {
+            anShiftFilter.delete(val);
+        }
+        _updateAnShiftFilterBtn();
+        if (anSelectedRoute && anSelectedRoute !== 'overview' && anSelectedRoute !== '') {
+            renderRouteAnalysis(anSelectedRoute);
+        } else {
+            renderOverview();
+        }
+    }
 
-     function clearShiftFilter() {
-         passShiftFilter = new Set();
-         _buildShiftOptions();
-         _updateShiftFilterBtn();
-         const ROSTER_SHEET = 'Personnel(EGYPT)';
-         const data = passCurrentLine === 'ALL' ? passAllData : passAllData.filter(r => r['_sheet'] === passCurrentLine);
-         const showLineCol = passCurrentLine === 'ALL' || passCurrentLine === ROSTER_SHEET;
-         renderPassTable(data, showLineCol);
-     }
+    function clearShiftFilter() {
+        passShiftFilter = new Set();
+        _buildShiftOptions();
+        _updateShiftFilterBtn();
+        const ROSTER_SHEET = 'Personnel(EGYPT)';
+        const data = passCurrentLine === 'ALL' ? passAllData : passAllData.filter(r => r['_sheet'] === passCurrentLine);
+        const showLineCol = passCurrentLine === 'ALL' || passCurrentLine === ROSTER_SHEET;
+        renderPassTable(data, showLineCol);
+    }
 
-     function clearAnShiftFilter() {
-         anShiftFilter = new Set();
-         _buildAnShiftOptions();
-         _updateAnShiftFilterBtn();
-         if (anSelectedRoute && anSelectedRoute !== 'overview' && anSelectedRoute !== '') {
-             renderRouteAnalysis(anSelectedRoute);
-         } else {
-             renderOverview();
-         }
-     }
+    function clearAnShiftFilter() {
+        anShiftFilter = new Set();
+        _buildAnShiftOptions();
+        _updateAnShiftFilterBtn();
+        if (anSelectedRoute && anSelectedRoute !== 'overview' && anSelectedRoute !== '') {
+            renderRouteAnalysis(anSelectedRoute);
+        } else {
+            renderOverview();
+        }
+    }
 
-     function _updateShiftFilterBtn() {
-         const btn = document.getElementById('shift-filter-btn');
-         const label = document.getElementById('shift-filter-label');
-         if (!btn || !label) return;
-         const count = passShiftFilter.size;
-         if (count === 0) {
-             label.textContent = 'All Shifts';
-             btn.classList.remove('active');
-             // Remove badge if exists
-             const badge = btn.querySelector('.shift-filter-badge');
-             if (badge) badge.remove();
-         } else {
-             label.textContent = count === 1 ? [...passShiftFilter][0] : `${count} Shifts`;
-             btn.classList.add('active');
-             let badge = btn.querySelector('.shift-filter-badge');
-             if (!badge) {
-                 badge = document.createElement('span');
-                 badge.className = 'shift-filter-badge';
-                 label.after(badge);
-             }
-             badge.textContent = count;
-         }
-     }
+    function _updateShiftFilterBtn() {
+        const btn = document.getElementById('shift-filter-btn');
+        const label = document.getElementById('shift-filter-label');
+        if (!btn || !label) return;
+        const count = passShiftFilter.size;
+        if (count === 0) {
+            label.textContent = 'All Shifts';
+            btn.classList.remove('active');
+            // Remove badge if exists
+            const badge = btn.querySelector('.shift-filter-badge');
+            if (badge) badge.remove();
+        } else {
+            label.textContent = count === 1 ? [...passShiftFilter][0] : `${count} Shifts`;
+            btn.classList.add('active');
+            let badge = btn.querySelector('.shift-filter-badge');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'shift-filter-badge';
+                label.after(badge);
+            }
+            badge.textContent = count;
+        }
+    }
 
-     function _updateAnShiftFilterBtn() {
-         const btn = document.getElementById('an-shift-filter-btn');
-         const label = document.getElementById('an-shift-filter-label');
-         if (!btn || !label) return;
-         const count = anShiftFilter.size;
-         if (count === 0) {
-             label.textContent = 'All Shifts';
-             btn.classList.remove('active');
-             // Remove badge if exists
-             const badge = btn.querySelector('.shift-filter-badge');
-             if (badge) badge.remove();
-         } else {
-             label.textContent = count === 1 ? [...anShiftFilter][0] : `${count} Shifts`;
-             btn.classList.add('active');
-             let badge = btn.querySelector('.shift-filter-badge');
-             if (!badge) {
-                 badge = document.createElement('span');
-                 badge.className = 'shift-filter-badge';
-                 label.after(badge);
-             }
-             badge.textContent = count;
-         }
-     }
+    function _updateAnShiftFilterBtn() {
+        const btn = document.getElementById('an-shift-btn');
+        const label = document.getElementById('an-shift-filter-label');
+        if (!btn || !label) return;
+        const count = anShiftFilter.size;
+        if (count === 0) {
+            label.textContent = 'All Shifts';
+            btn.classList.remove('active');
+            // Remove badge if exists
+            const badge = btn.querySelector('.shift-filter-badge');
+            if (badge) badge.remove();
+        } else {
+            label.textContent = count === 1 ? [...anShiftFilter][0] : `${count} Shifts`;
+            btn.classList.add('active');
+            let badge = btn.querySelector('.shift-filter-badge');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'shift-filter-badge';
+                label.after(badge);
+            }
+            badge.textContent = count;
+        }
+    }
 
-     // Close shift dropdown on outside click
-     document.addEventListener('click', e => {
-         const wrap = document.getElementById('shift-filter-wrap');
-         if (wrap && !wrap.contains(e.target)) {
-             const dropdown = document.getElementById('shift-dropdown');
-             const btn = document.getElementById('shift-filter-btn');
-             if (dropdown) dropdown.classList.remove('open');
-             if (btn) btn.classList.remove('open');
-         }
-     });
+    // Close shift dropdown on outside click
+    document.addEventListener('click', e => {
+        const wrap = document.getElementById('shift-filter-wrap');
+        if (wrap && !wrap.contains(e.target)) {
+            const dropdown = document.getElementById('shift-dropdown');
+            const btn = document.getElementById('shift-filter-btn');
+            if (dropdown) dropdown.classList.remove('open');
+            if (btn) btn.classList.remove('open');
+        }
+    });
 
-     // Close analytics shift dropdown on outside click
-     document.addEventListener('click', e => {
-         const wrap = document.getElementById('an-shift-filter-wrap');
-         if (wrap && !wrap.contains(e.target)) {
-             const dropdown = document.getElementById('an-shift-dropdown');
-             const btn = document.getElementById('an-shift-filter-btn');
-             if (dropdown) dropdown.classList.remove('open');
-             if (btn) btn.classList.remove('open');
-         }
-     });
+    // Close analytics shift dropdown on outside click
+    document.addEventListener('click', e => {
+        const wrap = document.getElementById('an-shift-filter-wrap');
+        if (wrap && !wrap.contains(e.target)) {
+            const dropdown = document.getElementById('an-shift-dropdown');
+            const btn = document.getElementById('an-shift-btn');
+            if (dropdown) dropdown.classList.remove('open');
+            if (btn) btn.classList.remove('open');
+        }
+    });
 
     // ── MAP INIT ───────────────────────────────────────────────
     const map = L.map('map', { zoomControl: false });
